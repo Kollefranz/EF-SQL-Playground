@@ -10,7 +10,7 @@ public static class DatabaseServiceExtensions
         string? connectionString
     )
     {
-        services.AddDbContext<TheApiDbContext>(options =>
+        services.AddDbContextPool<TheApiDbContext>(options =>
             options.UseSqlServer(connectionString)
         );
         return services;

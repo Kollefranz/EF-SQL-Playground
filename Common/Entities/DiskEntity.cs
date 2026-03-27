@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Common.Entities;
 
 public record DiskEntity
@@ -9,5 +11,6 @@ public record DiskEntity
     public required string DiskType { get; init; }
     public long UsedGb { get; init; }
 
+    [JsonIgnore]
     public ServerEntity? Server { get; init; }
 }

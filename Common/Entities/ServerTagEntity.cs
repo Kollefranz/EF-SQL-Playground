@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Common.Entities;
 
 public record ServerTagEntity
@@ -7,5 +9,6 @@ public record ServerTagEntity
     public required string Key { get; init; }
     public required string Value { get; init; }
 
+    [JsonIgnore]
     public ServerEntity? Server { get; init; }
 }

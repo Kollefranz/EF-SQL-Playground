@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Common.Entities;
 
 public record InstalledServiceEntity
@@ -10,5 +12,6 @@ public record InstalledServiceEntity
     public required string Status { get; init; }
     public DateTime InstalledAt { get; init; }
 
+    [JsonIgnore]
     public ServerEntity? Server { get; init; }
 }

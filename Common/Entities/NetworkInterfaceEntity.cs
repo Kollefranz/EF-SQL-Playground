@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Common.Entities;
 
 public record NetworkInterfaceEntity
@@ -9,7 +11,8 @@ public record NetworkInterfaceEntity
     public string? IpAddress { get; init; }
     public string? SubnetMask { get; init; }
     public int? VlanId { get; init; }
-    public bool IsEnabled { get; init; } = true;
+    public bool IsEnabled { get; init; } 
 
+    [JsonIgnore]
     public ServerEntity? Server { get; init; }
 }
