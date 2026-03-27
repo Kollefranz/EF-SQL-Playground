@@ -1,4 +1,4 @@
-namespace API.Entities;
+namespace Common.Entities;
 
 public record InstalledServiceEntity
 {

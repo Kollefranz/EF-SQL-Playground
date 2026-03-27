@@ -1,7 +1,7 @@
-using API.Entities;
+using Common.Entities;
 using Microsoft.EntityFrameworkCore;
 
-namespace API;
+namespace Common;
 
 public class TheApiDbContext(DbContextOptions options) : DbContext(options)
 {
@@ -10,7 +10,6 @@ public class TheApiDbContext(DbContextOptions options) : DbContext(options)
     public DbSet<NetworkInterfaceEntity> NetworkInterfaces => Set<NetworkInterfaceEntity>();
     public DbSet<InstalledServiceEntity> InstalledServices => Set<InstalledServiceEntity>();
     public DbSet<ServerTagEntity> ServerTags => Set<ServerTagEntity>();
-
 
     protected override void OnModelCreating(ModelBuilder x)
     {

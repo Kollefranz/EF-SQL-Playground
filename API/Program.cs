@@ -1,24 +1,14 @@
-using System.Data.Common;
-using API;
-using Microsoft.EntityFrameworkCore;
+using Common;
 using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-
 builder.Services.AddControllers();
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 
-builder.Services.AddDbContext<TheApiDbContext>(options =>
-{
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"));
-});
+builder.Services.AddTheApiDatabase(builder.Configuration.GetConnectionString("DefaultConnection"));
 
 var app = builder.Build();
-
-
 
 app.UseHttpsRedirection();
 
