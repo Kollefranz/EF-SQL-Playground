@@ -5,17 +5,17 @@ namespace Common.Seeding;
 
 public static class ServerSeeder
 {
-    public static IEnumerable<ServerEntity> Generate(int count)
+    public static IEnumerable<ServerJsonEntity> Generate(int count)
     {
         for (var i = 0; i < count; i++)
             yield return GenerateOne();
     }
 
-    private static ServerEntity GenerateOne()
+    private static ServerJsonEntity GenerateOne()
     {
         var f = new Faker();
 
-        var disks = new Faker<DiskEntity>()
+        var disks = new Faker<DiskJson>()
             .RuleFor(d => d.Id, _ => Guid.NewGuid())
             .RuleFor(d => d.MountPoint, x => x.System.DirectoryPath())
             .RuleFor(d => d.DiskType, x => x.PickRandom("SSD", "HDD", "NVMe"))
@@ -23,7 +23,7 @@ public static class ServerSeeder
             .RuleFor(d => d.UsedGb, (x, d) => x.Random.Long(0, d.CapacityGb))
             .Generate(f.Random.Int(1, 4));
 
-        var nics = new Faker<NetworkInterfaceEntity>()
+        var nics = new Faker<NetworkInterfaceJson>()
             .RuleFor(n => n.Id, _ => Guid.NewGuid())
             .RuleFor(n => n.Name, x => x.PickRandom("eth0", "eth1", "ens3", "bond0"))
             .RuleFor(n => n.MacAddress, x => x.Internet.Mac())
@@ -33,7 +33,7 @@ public static class ServerSeeder
             .RuleFor(n => n.IsEnabled, x => x.Random.Bool(0.9f))
             .Generate(f.Random.Int(1, 3));
 
-        var services = new Faker<InstalledServiceEntity>()
+        var services = new Faker<InstalledServiceJson>()
             .RuleFor(s => s.Id, _ => Guid.NewGuid())
             .RuleFor(s => s.Name, x => x.PickRandom("nginx", "postgresql", "redis", "docker", "prometheus", "grafana"))
             .RuleFor(s => s.Version, x => $"{x.Random.Int(1, 5)}.{x.Random.Int(0, 20)}.{x.Random.Int(0, 10)}")
@@ -42,7 +42,7 @@ public static class ServerSeeder
             .RuleFor(s => s.InstalledAt, x => x.Date.Past(2))
             .Generate(f.Random.Int(0, 5));
 
-        var tags = new Faker<ServerTagEntity>()
+        var tags = new Faker<ServerTagJson>()
             .RuleFor(t => t.Id, _ => Guid.NewGuid())
             .RuleFor(t => t.Key, x => x.PickRandom("team", "app", "tier", "region", "cost-center"))
             .RuleFor(t => t.Value, x => x.Lorem.Word())
@@ -51,7 +51,7 @@ public static class ServerSeeder
         var provisionedAt = f.Date.Past(5);
         var status = f.PickRandom("active", "inactive", "decommissioned");
 
-        return new Faker<ServerEntity>()
+        return new Faker<ServerJsonEntity>()
             .RuleFor(s => s.Id, _ => Guid.NewGuid())
             .RuleFor(s => s.Hostname, x => x.Internet.DomainWord() + "-" + x.Random.AlphaNumeric(4))
             .RuleFor(s => s.IpAddress, x => x.Internet.Ip())

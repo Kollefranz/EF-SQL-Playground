@@ -13,12 +13,12 @@ namespace API.Controllers;
 public class ServersController(TheApiDbContext context) : ControllerBase
 {
     [HttpGet("seed")]
-    public IAsyncEnumerable<ServerEntity> GetSeed([FromQuery] ushort count = 500)
+    public IAsyncEnumerable<ServerJsonEntity> GetSeed([FromQuery] ushort count = 500)
     {
         return ServerSeeder.Generate(count).ToAsyncEnumerable();
     }
-    
-    
+
+
     [HttpPost("seed")]
     public async Task<IActionResult> PostSeed([FromQuery] ushort count = 500)
     {
@@ -29,7 +29,7 @@ public class ServersController(TheApiDbContext context) : ControllerBase
         var saved = 0;
         for (var i = 0; i < servers.Count; i += 500)
         {
-            context.Servers.AddRange(servers.Skip(i).Take(500));
+            context.ServersJson.AddRange(servers.Skip(i).Take(500));
             saved += await context.SaveChangesAsync();
             context.ChangeTracker.Clear();
         }
@@ -41,18 +41,13 @@ public class ServersController(TheApiDbContext context) : ControllerBase
 
 
     [HttpGet()]
-    public IAsyncEnumerable<ServerEntity> GetServers()
+    public IAsyncEnumerable<ServerJsonEntity> GetServers()
     {
-        return context.Servers
+        return context.ServersJson
             .AsNoTracking()
-            .AsSplitQuery()
-            .Include(x => x.NetworkInterfaces)
-            .Include(x => x.Disks)
-            .Include(x => x.Tags)
-            .Include(x => x.InstalledServices)
             .AsAsyncEnumerable();
     }
-    
+
     [HttpGet("tag-infos")]
     public IAsyncEnumerable<TagInfoDto> GetTagInfos()
     {

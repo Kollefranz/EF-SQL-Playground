@@ -189,6 +189,64 @@ namespace Common.Migrations
                     b.ToTable("Servers");
                 });
 
+            modelBuilder.Entity("Common.Entities.ServerJsonEntity", b =>
+                {
+                    b.Property<int>("RowId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("RowId"));
+
+                    b.Property<int>("CpuCores")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("DecommissionedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Environment")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("Hostname")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<string>("IpAddress")
+                        .IsRequired()
+                        .HasMaxLength(45)
+                        .HasColumnType("nvarchar(45)");
+
+                    b.Property<int>("MemoryMb")
+                        .HasColumnType("int");
+
+                    b.Property<string>("OperatingSystem")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime>("ProvisionedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.HasKey("RowId");
+
+                    b.HasIndex("Id")
+                        .IsUnique();
+
+                    b.ToTable("ServersJson");
+                });
+
             modelBuilder.Entity("Common.Entities.ServerTagEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -247,6 +305,144 @@ namespace Common.Migrations
                         .IsRequired();
 
                     b.Navigation("Server");
+                });
+
+            modelBuilder.Entity("Common.Entities.ServerJsonEntity", b =>
+                {
+                    b.OwnsMany("Common.Entities.DiskJson", "Disks", b1 =>
+                        {
+                            b1.Property<int>("ServerJsonEntityRowId");
+
+                            b1.Property<int>("__synthesizedOrdinal")
+                                .ValueGeneratedOnAddOrUpdate();
+
+                            b1.Property<long>("CapacityGb");
+
+                            b1.Property<string>("DiskType")
+                                .IsRequired();
+
+                            b1.Property<Guid>("Id");
+
+                            b1.Property<string>("MountPoint")
+                                .IsRequired();
+
+                            b1.Property<long>("UsedGb");
+
+                            b1.HasKey("ServerJsonEntityRowId", "__synthesizedOrdinal");
+
+                            b1.ToTable("ServersJson");
+
+                            b1
+                                .ToJson("Disks")
+                                .HasColumnType("nvarchar(max)");
+
+                            b1.WithOwner()
+                                .HasForeignKey("ServerJsonEntityRowId");
+                        });
+
+                    b.OwnsMany("Common.Entities.InstalledServiceJson", "InstalledServices", b1 =>
+                        {
+                            b1.Property<int>("ServerJsonEntityRowId");
+
+                            b1.Property<int>("__synthesizedOrdinal")
+                                .ValueGeneratedOnAddOrUpdate();
+
+                            b1.Property<Guid>("Id");
+
+                            b1.Property<DateTime>("InstalledAt");
+
+                            b1.Property<string>("Name")
+                                .IsRequired();
+
+                            b1.Property<int>("Port");
+
+                            b1.Property<string>("Status")
+                                .IsRequired();
+
+                            b1.Property<string>("Version")
+                                .IsRequired();
+
+                            b1.HasKey("ServerJsonEntityRowId", "__synthesizedOrdinal");
+
+                            b1.ToTable("ServersJson");
+
+                            b1
+                                .ToJson("InstalledServices")
+                                .HasColumnType("nvarchar(max)");
+
+                            b1.WithOwner()
+                                .HasForeignKey("ServerJsonEntityRowId");
+                        });
+
+                    b.OwnsMany("Common.Entities.NetworkInterfaceJson", "NetworkInterfaces", b1 =>
+                        {
+                            b1.Property<int>("ServerJsonEntityRowId");
+
+                            b1.Property<int>("__synthesizedOrdinal")
+                                .ValueGeneratedOnAddOrUpdate();
+
+                            b1.Property<Guid>("Id");
+
+                            b1.Property<string>("IpAddress");
+
+                            b1.Property<bool>("IsEnabled");
+
+                            b1.Property<string>("MacAddress")
+                                .IsRequired();
+
+                            b1.Property<string>("Name")
+                                .IsRequired();
+
+                            b1.Property<string>("SubnetMask");
+
+                            b1.Property<int?>("VlanId");
+
+                            b1.HasKey("ServerJsonEntityRowId", "__synthesizedOrdinal");
+
+                            b1.ToTable("ServersJson");
+
+                            b1
+                                .ToJson("NetworkInterfaces")
+                                .HasColumnType("nvarchar(max)");
+
+                            b1.WithOwner()
+                                .HasForeignKey("ServerJsonEntityRowId");
+                        });
+
+                    b.OwnsMany("Common.Entities.ServerTagJson", "Tags", b1 =>
+                        {
+                            b1.Property<int>("ServerJsonEntityRowId");
+
+                            b1.Property<int>("__synthesizedOrdinal")
+                                .ValueGeneratedOnAddOrUpdate();
+
+                            b1.Property<Guid>("Id");
+
+                            b1.Property<string>("Key")
+                                .IsRequired();
+
+                            b1.Property<string>("Value")
+                                .IsRequired();
+
+                            b1.HasKey("ServerJsonEntityRowId", "__synthesizedOrdinal");
+
+                            b1.ToTable("ServersJson");
+
+                            b1
+                                .ToJson("Tags")
+                                .HasColumnType("nvarchar(max)");
+
+                            b1.WithOwner()
+                                .HasForeignKey("ServerJsonEntityRowId");
+                        });
+
+                    b.Navigation("Disks");
+
+                    b.Navigation("InstalledServices");
+
+                    b.Navigation("NetworkInterfaces");
+
+                    b.Navigation("Tags");
                 });
 
             modelBuilder.Entity("Common.Entities.ServerTagEntity", b =>

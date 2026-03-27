@@ -10,6 +10,7 @@ public class TheApiDbContext(DbContextOptions options) : DbContext(options)
     public DbSet<NetworkInterfaceEntity> NetworkInterfaces => Set<NetworkInterfaceEntity>();
     public DbSet<InstalledServiceEntity> InstalledServices => Set<InstalledServiceEntity>();
     public DbSet<ServerTagEntity> ServerTags => Set<ServerTagEntity>();
+    public DbSet<ServerJsonEntity> ServersJson => Set<ServerJsonEntity>();
 
     protected override void OnModelCreating(ModelBuilder x)
     {
@@ -79,5 +80,19 @@ public class TheApiDbContext(DbContextOptions options) : DbContext(options)
         x.Entity<InstalledServiceEntity>()
             .HasIndex(i => i.ServerId)
             .IncludeProperties(i => new { i.Id, i.Name, i.Version, i.Port, i.Status, i.InstalledAt });
+
+        x.Entity<ServerJsonEntity>().HasKey(s => s.RowId);
+        x.Entity<ServerJsonEntity>().Property(s => s.RowId).ValueGeneratedOnAdd();
+        x.Entity<ServerJsonEntity>().HasIndex(s => s.Id).IsUnique();
+        x.Entity<ServerJsonEntity>().Property(s => s.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
+        x.Entity<ServerJsonEntity>().Property(s => s.Hostname).HasMaxLength(256);
+        x.Entity<ServerJsonEntity>().Property(s => s.IpAddress).HasMaxLength(45);
+        x.Entity<ServerJsonEntity>().Property(s => s.OperatingSystem).HasMaxLength(100);
+        x.Entity<ServerJsonEntity>().Property(s => s.Status).HasMaxLength(50);
+        x.Entity<ServerJsonEntity>().Property(s => s.Environment).HasMaxLength(50);
+        x.Entity<ServerJsonEntity>().OwnsMany(s => s.Disks, b => b.ToJson());
+        x.Entity<ServerJsonEntity>().OwnsMany(s => s.NetworkInterfaces, b => b.ToJson());
+        x.Entity<ServerJsonEntity>().OwnsMany(s => s.InstalledServices, b => b.ToJson());
+        x.Entity<ServerJsonEntity>().OwnsMany(s => s.Tags, b => b.ToJson());
     }
 }
