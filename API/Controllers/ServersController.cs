@@ -1,4 +1,5 @@
 
+using API.DTOs;
 using Common;
 using Common.Entities;
 using Common.Seeding;
@@ -35,12 +36,23 @@ public class ServersController(TheApiDbContext context) : ControllerBase
     {
         return await context.Servers
             .Include(x => x.NetworkInterfaces)
+            .Include(x => x.Disks)
+            .Include(x => x.Tags)
+            .Include(x => x.InstalledServices)
             .ToArrayAsync();
     }
     
-    [HttpGet("tag")]
-    public async Task<object> GetVolume()
+    [HttpGet("tag-infos")]
+    public IAsyncEnumerable<TagInfoDto> GetTagInfos()
     {
-        return await context.ServerTags.FirstAsync();
+        return context.ServerTags
+            .AsNoTracking()
+            .Select(x => new TagInfoDto
+            {
+                ServerId = x.ServerId,
+                TagName = x.Key,
+                TagValue = x.Value,
+            })
+            .AsAsyncEnumerable();
     }
 }
