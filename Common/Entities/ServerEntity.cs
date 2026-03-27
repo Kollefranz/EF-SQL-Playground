@@ -2,6 +2,7 @@ namespace Common.Entities;
 
 public record ServerEntity
 {
+    public int RowId { get; init; }
     public Guid Id { get; init; }
     public required string Hostname { get; init; }
     public required string IpAddress { get; init; }

@@ -22,24 +22,35 @@ public class ServersController(TheApiDbContext context) : ControllerBase
     [HttpPost("seed")]
     public async Task<IActionResult> PostSeed([FromQuery] ushort count = 500)
     {
-        var servers = ServerSeeder.Generate(count);
-        
-        await context.Servers.AddRangeAsync(servers);
-        var res = await context.SaveChangesAsync();
+        var servers = ServerSeeder.Generate(count).ToList();
 
-        return Accepted(res);
+        context.ChangeTracker.AutoDetectChangesEnabled = false;
+
+        var saved = 0;
+        for (var i = 0; i < servers.Count; i += 500)
+        {
+            context.Servers.AddRange(servers.Skip(i).Take(500));
+            saved += await context.SaveChangesAsync();
+            context.ChangeTracker.Clear();
+        }
+
+        context.ChangeTracker.AutoDetectChangesEnabled = true;
+
+        return Accepted(saved);
     }
 
 
     [HttpGet()]
-    public async Task<object> GetServers()
+    public IAsyncEnumerable<ServerEntity> GetServers()
     {
-        return await context.Servers
+        return context.Servers
+            .AsNoTracking()
+            .AsSplitQuery()
             .Include(x => x.NetworkInterfaces)
             .Include(x => x.Disks)
             .Include(x => x.Tags)
             .Include(x => x.InstalledServices)
-            .ToArrayAsync();
+            .AsAsyncEnumerable();
     }
     
     [HttpGet("tag-infos")]
@@ -49,7 +60,7 @@ public class ServersController(TheApiDbContext context) : ControllerBase
             .AsNoTracking()
             .Select(x => new TagInfoDto
             {
-                ServerId = x.ServerId,
+                ServerId = x.Server!.Id,
                 TagName = x.Key,
                 TagValue = x.Value,
             })

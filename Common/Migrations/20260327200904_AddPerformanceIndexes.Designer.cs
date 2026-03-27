@@ -4,6 +4,7 @@ using Common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Common.Migrations
 {
     [DbContext(typeof(TheApiDbContext))]
-    partial class TheApiDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260327200904_AddPerformanceIndexes")]
+    partial class AddPerformanceIndexes
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -40,8 +43,8 @@ namespace Common.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<int>("ServerId")
-                        .HasColumnType("int");
+                    b.Property<Guid>("ServerId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<long>("UsedGb")
                         .HasColumnType("bigint");
@@ -49,8 +52,6 @@ namespace Common.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("ServerId");
-
-                    SqlServerIndexBuilderExtensions.IncludeProperties(b.HasIndex("ServerId"), new[] { "Id", "MountPoint", "CapacityGb", "DiskType", "UsedGb" });
 
                     b.ToTable("Disks");
                 });
@@ -72,8 +73,8 @@ namespace Common.Migrations
                     b.Property<int>("Port")
                         .HasColumnType("int");
 
-                    b.Property<int>("ServerId")
-                        .HasColumnType("int");
+                    b.Property<Guid>("ServerId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -86,8 +87,6 @@ namespace Common.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("ServerId");
-
-                    SqlServerIndexBuilderExtensions.IncludeProperties(b.HasIndex("ServerId"), new[] { "Id", "Name", "Version", "Port", "Status", "InstalledAt" });
 
                     b.ToTable("InstalledServices");
                 });
@@ -113,8 +112,8 @@ namespace Common.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<int>("ServerId")
-                        .HasColumnType("int");
+                    b.Property<Guid>("ServerId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("SubnetMask")
                         .HasColumnType("nvarchar(max)");
@@ -126,18 +125,15 @@ namespace Common.Migrations
 
                     b.HasIndex("ServerId");
 
-                    SqlServerIndexBuilderExtensions.IncludeProperties(b.HasIndex("ServerId"), new[] { "Id", "Name", "MacAddress", "IpAddress", "SubnetMask", "VlanId", "IsEnabled" });
-
                     b.ToTable("NetworkInterfaces");
                 });
 
             modelBuilder.Entity("Common.Entities.ServerEntity", b =>
                 {
-                    b.Property<int>("RowId")
+                    b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("RowId"));
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
 
                     b.Property<int>("CpuCores")
                         .HasColumnType("int");
@@ -154,11 +150,6 @@ namespace Common.Migrations
                         .IsRequired()
                         .HasMaxLength(256)
                         .HasColumnType("nvarchar(256)");
-
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier")
-                        .HasDefaultValueSql("NEWSEQUENTIALID()");
 
                     b.Property<string>("IpAddress")
                         .IsRequired()
@@ -181,10 +172,7 @@ namespace Common.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
-                    b.HasKey("RowId");
-
-                    b.HasIndex("Id")
-                        .IsUnique();
+                    b.HasKey("Id");
 
                     b.ToTable("Servers");
                 });
@@ -200,8 +188,8 @@ namespace Common.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<int>("ServerId")
-                        .HasColumnType("int");
+                    b.Property<Guid>("ServerId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("Value")
                         .IsRequired()
@@ -210,8 +198,6 @@ namespace Common.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("ServerId");
-
-                    SqlServerIndexBuilderExtensions.IncludeProperties(b.HasIndex("ServerId"), new[] { "Id", "Key", "Value" });
 
                     b.ToTable("ServerTags");
                 });

@@ -14,11 +14,9 @@ public static class ServerSeeder
     private static ServerEntity GenerateOne()
     {
         var f = new Faker();
-        var serverId = Guid.NewGuid();
 
         var disks = new Faker<DiskEntity>()
             .RuleFor(d => d.Id, _ => Guid.NewGuid())
-            .RuleFor(d => d.ServerId, _ => serverId)
             .RuleFor(d => d.MountPoint, x => x.System.DirectoryPath())
             .RuleFor(d => d.DiskType, x => x.PickRandom("SSD", "HDD", "NVMe"))
             .RuleFor(d => d.CapacityGb, x => x.PickRandom(256L, 512L, 1024L, 2048L, 4096L))
@@ -27,7 +25,6 @@ public static class ServerSeeder
 
         var nics = new Faker<NetworkInterfaceEntity>()
             .RuleFor(n => n.Id, _ => Guid.NewGuid())
-            .RuleFor(n => n.ServerId, _ => serverId)
             .RuleFor(n => n.Name, x => x.PickRandom("eth0", "eth1", "ens3", "bond0"))
             .RuleFor(n => n.MacAddress, x => x.Internet.Mac())
             .RuleFor(n => n.IpAddress, x => x.Internet.Ip())
@@ -38,7 +35,6 @@ public static class ServerSeeder
 
         var services = new Faker<InstalledServiceEntity>()
             .RuleFor(s => s.Id, _ => Guid.NewGuid())
-            .RuleFor(s => s.ServerId, _ => serverId)
             .RuleFor(s => s.Name, x => x.PickRandom("nginx", "postgresql", "redis", "docker", "prometheus", "grafana"))
             .RuleFor(s => s.Version, x => $"{x.Random.Int(1, 5)}.{x.Random.Int(0, 20)}.{x.Random.Int(0, 10)}")
             .RuleFor(s => s.Port, x => x.Internet.Port())
@@ -48,7 +44,6 @@ public static class ServerSeeder
 
         var tags = new Faker<ServerTagEntity>()
             .RuleFor(t => t.Id, _ => Guid.NewGuid())
-            .RuleFor(t => t.ServerId, _ => serverId)
             .RuleFor(t => t.Key, x => x.PickRandom("team", "app", "tier", "region", "cost-center"))
             .RuleFor(t => t.Value, x => x.Lorem.Word())
             .Generate(f.Random.Int(1, 5));
@@ -57,7 +52,7 @@ public static class ServerSeeder
         var status = f.PickRandom("active", "inactive", "decommissioned");
 
         return new Faker<ServerEntity>()
-            .RuleFor(s => s.Id, _ => serverId)
+            .RuleFor(s => s.Id, _ => Guid.NewGuid())
             .RuleFor(s => s.Hostname, x => x.Internet.DomainWord() + "-" + x.Random.AlphaNumeric(4))
             .RuleFor(s => s.IpAddress, x => x.Internet.Ip())
             .RuleFor(s => s.OperatingSystem, x => x.PickRandom("Ubuntu 24.04", "Debian 12", "RHEL 9", "Windows Server 2022"))
