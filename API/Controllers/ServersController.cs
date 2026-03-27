@@ -30,11 +30,17 @@ public class ServersController(TheApiDbContext context) : ControllerBase
     }
 
 
-    [HttpGet("servers")]
+    [HttpGet()]
     public async Task<object> GetServers()
     {
         return await context.Servers
             .Include(x => x.NetworkInterfaces)
             .ToArrayAsync();
+    }
+    
+    [HttpGet("tag")]
+    public async Task<object> GetVolume()
+    {
+        return await context.ServerTags.FirstAsync();
     }
 }
