@@ -1,4 +1,4 @@
-
+using System.Diagnostics;
 using API.DTOs;
 using Common;
 using Common.Entities;
@@ -10,7 +10,8 @@ namespace API.Controllers;
 
 [ApiController]
 [Route("[controller]")]
-public class ServersController(TheApiDbContext context) : ControllerBase
+public class ServersController(TheApiDbContext context, ILogger<ServersController> logger)
+    : ControllerBase
 {
     [HttpGet("seed")]
     public IAsyncEnumerable<ServerJsonEntity> GetSeed([FromQuery] ushort count = 500)
@@ -18,27 +19,38 @@ public class ServersController(TheApiDbContext context) : ControllerBase
         return ServerSeeder.Generate(count).ToAsyncEnumerable();
     }
 
-
     [HttpPost("seed")]
     public async Task<IActionResult> PostSeed([FromQuery] ushort count = 500)
     {
-        var servers = ServerSeeder.Generate(count).ToList();
+        var sw = Stopwatch.StartNew();
+        var servers = FastServerSeeder.Generate(count);
+        var generationMs = sw.Elapsed.TotalMilliseconds;
+        logger.LogInformation("Generation: {GenerationMs}ms", generationMs);
 
         context.ChangeTracker.AutoDetectChangesEnabled = false;
 
+        sw.Restart();
         var saved = 0;
-        for (var i = 0; i < servers.Count; i += 500)
+        for (var i = 0; i < servers.Length; i += 500)
         {
             context.ServersJson.AddRange(servers.Skip(i).Take(500));
             saved += await context.SaveChangesAsync();
             context.ChangeTracker.Clear();
         }
+        var efMs = sw.Elapsed.TotalMilliseconds;
+        logger.LogInformation("EF insert: {EfMs}ms", efMs);
 
         context.ChangeTracker.AutoDetectChangesEnabled = true;
 
-        return Accepted(saved);
+        return Accepted(
+            new
+            {
+                saved,
+                generationMs,
+                efMs,
+            }
+        );
     }
-
 
     [HttpGet()]
     public IAsyncEnumerable<ServerJsonEntity> GetServers()
@@ -77,8 +89,8 @@ public class ServersController(TheApiDbContext context) : ControllerBase
     [HttpGet("tag-infos")]
     public IAsyncEnumerable<TagInfoDto> GetTagInfos()
     {
-        return context.ServerTags
-            .AsNoTracking()
+        return context
+            .ServerTags.AsNoTracking()
             .Select(x => new TagInfoDto
             {
                 ServerId = x.Server!.Id,
