@@ -1,9 +1,12 @@
+using System.Data;
 using System.Diagnostics;
+using System.Text.Json;
 using API.DTOs;
 using Common;
 using Common.Entities;
 using Common.Seeding;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 
 namespace API.Controllers;
@@ -27,29 +30,67 @@ public class ServersController(TheApiDbContext context, ILogger<ServersControlle
         var generationMs = sw.Elapsed.TotalMilliseconds;
         logger.LogInformation("Generation: {GenerationMs}ms", generationMs);
 
-        context.ChangeTracker.AutoDetectChangesEnabled = false;
-
         sw.Restart();
-        var saved = 0;
-        for (var i = 0; i < servers.Length; i += 500)
+        await BulkInsertAsync(servers);
+        var insertMs = sw.Elapsed.TotalMilliseconds;
+        logger.LogInformation("Bulk insert: {InsertMs}ms", insertMs);
+
+        return Accepted(new { saved = count, generationMs, insertMs });
+    }
+
+    async Task BulkInsertAsync(ServerJsonEntity[] servers)
+    {
+        var dt = new DataTable();
+        dt.Columns.Add("Id", typeof(Guid));
+        dt.Columns.Add("Hostname", typeof(string));
+        dt.Columns.Add("IpAddress", typeof(string));
+        dt.Columns.Add("OperatingSystem", typeof(string));
+        dt.Columns.Add("CpuCores", typeof(int));
+        dt.Columns.Add("MemoryMb", typeof(int));
+        dt.Columns.Add("Status", typeof(string));
+        dt.Columns.Add("Environment", typeof(string));
+        dt.Columns.Add("ProvisionedAt", typeof(DateTime));
+        dt.Columns.Add("DecommissionedAt", typeof(DateTime));
+        dt.Columns.Add("Disks", typeof(string));
+        dt.Columns.Add("NetworkInterfaces", typeof(string));
+        dt.Columns.Add("InstalledServices", typeof(string));
+        dt.Columns.Add("Tags", typeof(string));
+
+        foreach (var s in servers)
         {
-            context.ServersJson.AddRange(servers.Skip(i).Take(500));
-            saved += await context.SaveChangesAsync();
-            context.ChangeTracker.Clear();
+            dt.Rows.Add(
+                s.Id,
+                s.Hostname,
+                s.IpAddress,
+                s.OperatingSystem,
+                s.CpuCores,
+                s.MemoryMb,
+                s.Status,
+                s.Environment,
+                s.ProvisionedAt,
+                (object?)s.DecommissionedAt ?? DBNull.Value,
+                JsonSerializer.Serialize(s.Disks),
+                JsonSerializer.Serialize(s.NetworkInterfaces),
+                JsonSerializer.Serialize(s.InstalledServices),
+                JsonSerializer.Serialize(s.Tags)
+            );
         }
-        var efMs = sw.Elapsed.TotalMilliseconds;
-        logger.LogInformation("EF insert: {EfMs}ms", efMs);
 
-        context.ChangeTracker.AutoDetectChangesEnabled = true;
+        await using var conn = new SqlConnection(context.Database.GetConnectionString());
+        await conn.OpenAsync();
 
-        return Accepted(
-            new
-            {
-                saved,
-                generationMs,
-                efMs,
-            }
-        );
+        using (var bulk = new SqlBulkCopy(conn, SqlBulkCopyOptions.TableLock, null))
+        // using (var bulk = new SqlBulkCopy(conn, SqlBulkCopyOptions.Default, null))
+        {
+            bulk.DestinationTableName = "ServersJson";
+            bulk.BatchSize = 0;
+            bulk.BulkCopyTimeout = 120;
+
+            foreach (DataColumn col in dt.Columns)
+                bulk.ColumnMappings.Add(col.ColumnName, col.ColumnName);
+
+            await bulk.WriteToServerAsync(dt);
+        }
     }
 
     [HttpGet()]
