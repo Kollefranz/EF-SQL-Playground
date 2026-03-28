@@ -43,9 +43,35 @@ public class ServersController(TheApiDbContext context) : ControllerBase
     [HttpGet()]
     public IAsyncEnumerable<ServerJsonEntity> GetServers()
     {
-        return context.ServersJson
-            .AsNoTracking()
-            .AsAsyncEnumerable();
+        return context.ServersJson.AsNoTracking().AsAsyncEnumerable();
+    }
+
+    [HttpGet("paged")]
+    public async Task<PagedResult<ServerEntity>> GetServersPaged(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 25
+    )
+    {
+        var total = await context.Servers.CountAsync();
+        var items = await context
+            .Servers.AsNoTracking()
+            .AsSplitQuery()
+            .Include(x => x.NetworkInterfaces)
+            .Include(x => x.Disks)
+            .Include(x => x.Tags)
+            .Include(x => x.InstalledServices)
+            .OrderBy(x => x.RowId)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+
+        return new PagedResult<ServerEntity>
+        {
+            Items = items,
+            Total = total,
+            Page = page,
+            PageSize = pageSize,
+        };
     }
 
     [HttpGet("tag-infos")]
