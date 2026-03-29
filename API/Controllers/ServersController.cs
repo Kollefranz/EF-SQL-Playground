@@ -128,16 +128,18 @@ public class ServersController(TheApiDbContext context, ILogger<ServersControlle
     }
 
     [HttpGet("tag-infos")]
-    public IAsyncEnumerable<TagInfoDto> GetTagInfos()
+    public object GetTagInfos()
     {
-        return context
+        var query = context
             .ServerTags.AsNoTracking()
+            .Where(x => x.Server != null)
             .Select(x => new TagInfoDto
             {
                 ServerId = x.Server!.Id,
                 TagName = x.Key,
                 TagValue = x.Value,
-            })
-            .AsAsyncEnumerable();
+            });
+
+        return query.ToArray();
     }
 }
