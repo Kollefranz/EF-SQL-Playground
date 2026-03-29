@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using System.Data;
 using System.Diagnostics;
 using System.Text.Json;
@@ -17,13 +18,13 @@ public class ServersController(TheApiDbContext context, ILogger<ServersControlle
     : ControllerBase
 {
     [HttpGet("seed")]
-    public IAsyncEnumerable<ServerJsonEntity> GetSeed([FromQuery] ushort count = 500)
+    public IAsyncEnumerable<ServerJsonEntity> GetSeed([FromQuery] [Range(1, long.MaxValue)] long count = 500)
     {
         return ServerSeeder.Generate(count).ToAsyncEnumerable();
     }
 
     [HttpPost("seed")]
-    public async Task<IActionResult> PostSeed([FromQuery] ushort count = 500)
+    public async Task<IActionResult> PostSeed([FromQuery] [Range(1, long.MaxValue)] long count = 500, CancellationToken ct = default)
     {
         var sw = Stopwatch.StartNew();
         var servers = FastServerSeeder.Generate(count);
@@ -31,14 +32,14 @@ public class ServersController(TheApiDbContext context, ILogger<ServersControlle
         logger.LogInformation("Generation: {GenerationMs}ms", generationMs);
 
         sw.Restart();
-        await BulkInsertAsync(servers);
+        await BulkInsertAsync(servers, ct);
         var insertMs = sw.Elapsed.TotalMilliseconds;
         logger.LogInformation("Bulk insert: {InsertMs}ms", insertMs);
 
         return Accepted(new { saved = count, generationMs, insertMs });
     }
 
-    async Task BulkInsertAsync(ServerJsonEntity[] servers)
+    async Task BulkInsertAsync(ServerJsonEntity[] servers, CancellationToken ct)
     {
         var dt = new DataTable();
         dt.Columns.Add("Id", typeof(Guid));
@@ -77,23 +78,32 @@ public class ServersController(TheApiDbContext context, ILogger<ServersControlle
         }
 
         await using var conn = new SqlConnection(context.Database.GetConnectionString());
-        await conn.OpenAsync();
+        await conn.OpenAsync(ct);
 
-        using (var bulk = new SqlBulkCopy(conn, SqlBulkCopyOptions.TableLock, null))
+        await using (var tx = conn.BeginTransaction())
         {
-            bulk.DestinationTableName = "ServersJson";
-            bulk.BatchSize = 0;
-            bulk.BulkCopyTimeout = 120;
+            await using (var cmd = new SqlCommand("TRUNCATE TABLE ServersJson", conn, tx))
+                await cmd.ExecuteNonQueryAsync(ct);
 
-            foreach (DataColumn col in dt.Columns)
-                bulk.ColumnMappings.Add(col.ColumnName, col.ColumnName);
+            using (var bulk = new SqlBulkCopy(conn, SqlBulkCopyOptions.TableLock, tx))
+            {
+                bulk.DestinationTableName = "ServersJson";
+                bulk.BatchSize = 0;
+                bulk.BulkCopyTimeout = 120;
 
-            await bulk.WriteToServerAsync(dt);
+                foreach (DataColumn col in dt.Columns)
+                    bulk.ColumnMappings.Add(col.ColumnName, col.ColumnName);
+
+                await bulk.WriteToServerAsync(dt, ct);
+            }
+
+            await tx.CommitAsync(ct);
         }
+
     }
 
     [HttpPost("seed-ef")]
-    public async Task<IActionResult> PostSeedEf([FromQuery] ushort count = 500)
+    public async Task<IActionResult> PostSeedEf([FromQuery] [Range(1, long.MaxValue)] long count = 500, CancellationToken ct = default)
     {
         var sw = Stopwatch.StartNew();
         var servers = FastServerSeeder.Generate(count);
@@ -106,7 +116,7 @@ public class ServersController(TheApiDbContext context, ILogger<ServersControlle
         for (var i = 0; i < servers.Length; i += 500)
         {
             context.ServersJson.AddRange(servers.Skip(i).Take(500));
-            saved += await context.SaveChangesAsync();
+            saved += await context.SaveChangesAsync(ct);
             context.ChangeTracker.Clear();
         }
         context.ChangeTracker.AutoDetectChangesEnabled = true;
@@ -125,10 +135,11 @@ public class ServersController(TheApiDbContext context, ILogger<ServersControlle
     [HttpGet("paged")]
     public async Task<PagedResult<ServerEntity>> GetServersPaged(
         [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 25
+        [FromQuery] int pageSize = 25,
+        CancellationToken ct = default
     )
     {
-        var total = await context.Servers.CountAsync();
+        var total = await context.Servers.CountAsync(ct);
         var items = await context
             .Servers.AsNoTracking()
             .AsSplitQuery()
@@ -139,8 +150,7 @@ public class ServersController(TheApiDbContext context, ILogger<ServersControlle
             .OrderBy(x => x.RowId)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
-            .ToListAsync();
-        
+            .ToListAsync(ct);
 
         return new PagedResult<ServerEntity>
         {
@@ -152,7 +162,7 @@ public class ServersController(TheApiDbContext context, ILogger<ServersControlle
     }
 
     [HttpGet("tag-infos")]
-    public object GetTagInfos()
+    public async Task<IActionResult> GetTagInfos(CancellationToken ct)
     {
         var query = context
             .ServerTags.AsNoTracking()
@@ -164,6 +174,6 @@ public class ServersController(TheApiDbContext context, ILogger<ServersControlle
                 TagValue = x.Value,
             });
 
-        return query.ToArray();
+        return Ok(await query.ToArrayAsync(ct));
     }
 }

@@ -41,14 +41,14 @@ public static class FastServerSeeder
         "theta",
     ];
 
-    public static ServerJsonEntity[] Generate(int count)
+    public static ServerJsonEntity[] Generate(long count)
     {
         var results = new ServerJsonEntity[count];
         Parallel.For(0, count, i => results[i] = GenerateOne(i));
         return results;
     }
 
-    static ServerJsonEntity GenerateOne(int index)
+    static ServerJsonEntity GenerateOne(long index)
     {
         var r = Random.Shared;
         var status = Pick(r, Statuses);

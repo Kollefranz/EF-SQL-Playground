@@ -5,7 +5,7 @@ namespace Common.Seeding;
 
 public static class ServerSeeder
 {
-    public static IEnumerable<ServerJsonEntity> Generate(int count)
+    public static IEnumerable<ServerJsonEntity> Generate(long count)
     {
         for (var i = 0; i < count; i++)
             yield return GenerateOne();
