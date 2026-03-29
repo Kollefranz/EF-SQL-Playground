@@ -80,7 +80,6 @@ public class ServersController(TheApiDbContext context, ILogger<ServersControlle
         await conn.OpenAsync();
 
         using (var bulk = new SqlBulkCopy(conn, SqlBulkCopyOptions.TableLock, null))
-        // using (var bulk = new SqlBulkCopy(conn, SqlBulkCopyOptions.Default, null))
         {
             bulk.DestinationTableName = "ServersJson";
             bulk.BatchSize = 0;
@@ -91,6 +90,30 @@ public class ServersController(TheApiDbContext context, ILogger<ServersControlle
 
             await bulk.WriteToServerAsync(dt);
         }
+    }
+
+    [HttpPost("seed-ef")]
+    public async Task<IActionResult> PostSeedEf([FromQuery] ushort count = 500)
+    {
+        var sw = Stopwatch.StartNew();
+        var servers = FastServerSeeder.Generate(count);
+        var generationMs = sw.Elapsed.TotalMilliseconds;
+        logger.LogInformation("Generation: {GenerationMs}ms", generationMs);
+
+        sw.Restart();
+        context.ChangeTracker.AutoDetectChangesEnabled = false;
+        var saved = 0;
+        for (var i = 0; i < servers.Length; i += 500)
+        {
+            context.ServersJson.AddRange(servers.Skip(i).Take(500));
+            saved += await context.SaveChangesAsync();
+            context.ChangeTracker.Clear();
+        }
+        context.ChangeTracker.AutoDetectChangesEnabled = true;
+        var efMs = sw.Elapsed.TotalMilliseconds;
+        logger.LogInformation("EF insert: {EfMs}ms", efMs);
+
+        return Accepted(new { saved, generationMs, efMs });
     }
 
     [HttpGet()]
@@ -117,6 +140,7 @@ public class ServersController(TheApiDbContext context, ILogger<ServersControlle
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync();
+        
 
         return new PagedResult<ServerEntity>
         {
