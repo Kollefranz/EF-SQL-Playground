@@ -10,5 +10,7 @@
         <option value="get_errors" />
       </set>
     </option>
+    <option name="selectedRulesFile" value="SWEEP.md" />
+    <option name="showAutocompleteBadge" value="true" />
   </component>
 </project>
