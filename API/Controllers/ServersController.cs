@@ -92,7 +92,9 @@ public class ServersController(TheApiDbContext context, ILogger<ServersControlle
                 bulk.BulkCopyTimeout = 120;
 
                 foreach (DataColumn col in dt.Columns)
+                {
                     bulk.ColumnMappings.Add(col.ColumnName, col.ColumnName);
+                }
 
                 await bulk.WriteToServerAsync(dt, ct);
             }
@@ -126,14 +128,14 @@ public class ServersController(TheApiDbContext context, ILogger<ServersControlle
         return Accepted(new { saved, generationMs, efMs });
     }
 
-    [HttpGet()]
+    [HttpGet]
     public IAsyncEnumerable<ServerJsonEntity> GetServers()
     {
         return context.ServersJson.AsNoTracking().AsAsyncEnumerable();
     }
 
     [HttpGet("paged")]
-    public async Task<PagedResult<ServerEntity>> GetServersPaged(
+    public async Task<PagedResult<object>> GetServersPaged(
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 25,
         CancellationToken ct = default
@@ -141,8 +143,8 @@ public class ServersController(TheApiDbContext context, ILogger<ServersControlle
     {
         var total = await context.Servers.CountAsync(ct);
         var items = await context
-            .Servers.AsNoTracking()
-            .AsSplitQuery()
+            .ServersJson.AsNoTracking()
+            // .AsSplitQuery()
             .Include(x => x.NetworkInterfaces)
             .Include(x => x.Disks)
             .Include(x => x.Tags)
@@ -152,7 +154,7 @@ public class ServersController(TheApiDbContext context, ILogger<ServersControlle
             .Take(pageSize)
             .ToListAsync(ct);
 
-        return new PagedResult<ServerEntity>
+        return new PagedResult<object>
         {
             Items = items,
             Total = total,
