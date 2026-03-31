@@ -3,12 +3,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace API;
 
-public interface IQueryLensDbContextFactory<out TContext>
-    where TContext : DbContext
-{
-    TContext CreateOfflineContext();
-}
-
 public sealed class QueryLensFactory : IQueryLensDbContextFactory<TheApiDbContext>
 {
     public TheApiDbContext CreateOfflineContext()
