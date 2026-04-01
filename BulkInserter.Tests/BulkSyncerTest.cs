@@ -1,4 +1,8 @@
+using System;
 using System.Data;
+using System.Linq;
+using System.Reflection;
+using AutoFixture.Xunit3;
 using JetBrains.Annotations;
 using Shouldly;
 using Xunit;
@@ -12,16 +16,45 @@ public class BulkSyncerTest(DatabaseFixture fixture) : DatabaseTest(fixture)
     public void TestBuildDataTable_WithCommonClrTypes()
     {
         var dataTable = BulkSyncer.BuildDataTable<TestEntity>(Db);
+        var props = typeof(TestEntity).GetProperties();
+        dataTable.Columns.Count.ShouldBe(props.Length);
+        foreach (var propertyInfo in props)
+        {
+            dataTable.Columns.Contains(propertyInfo.Name).ShouldBeTrue();
+        }
+    }
 
-        dataTable.Columns.Count.ShouldBe(7);
 
-        dataTable.Columns.Contains("Id").ShouldBeTrue();
-        dataTable.Columns.Contains("Name").ShouldBeTrue();
-        dataTable.Columns.Contains("CreatedAt").ShouldBeTrue();
-        dataTable.Columns.Contains("UpdatedAt").ShouldBeTrue();
-        dataTable.Columns.Contains("Duration").ShouldBeTrue();
-        dataTable.Columns.Contains("Count").ShouldBeTrue();
-        dataTable.Columns.Contains("LargeCount").ShouldBeTrue();
-        dataTable.Columns.Contains("VeryLargeCount").ShouldBeTrue();
+    [Theory]
+    [InlineAutoData]
+    public void DataTableInsert_ActualValuesFromEntities(TestEntity[] entities)
+    {
+        var dataTable = BulkSyncer.BuildDataTable<TestEntity>(Db);
+
+        var props = typeof(TestEntity).GetProperties();
+        foreach (var entity in entities)
+        {
+            var row = dataTable.NewRow();
+            
+            foreach (PropertyInfo prop in props)
+            {
+                var value = prop.GetMethod!.Invoke(entity, null);
+                
+                // todo missing inserts for the row
+            }
+        }
+
+        dataTable.Rows.Count.ShouldBe(entities.Length);
+        foreach (var entity in entities)
+        {
+            var row = dataTable.Rows.Find(entity.Id);
+            row.ShouldNotBeNull();
+            
+            foreach (PropertyInfo prop in props)
+            {
+                var columnName = prop.Name;
+                row[columnName].ShouldBe(prop.GetValue(entity));
+            }
+        }
     }
 }

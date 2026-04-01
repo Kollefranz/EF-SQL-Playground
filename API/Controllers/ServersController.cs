@@ -6,6 +6,7 @@ using API.DTOs;
 using Common;
 using Common.Entities;
 using Common.Seeding;
+using EFCore.BulkExtensions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
@@ -18,13 +19,18 @@ public class ServersController(TheApiDbContext context, ILogger<ServersControlle
     : ControllerBase
 {
     [HttpGet("seed")]
-    public IAsyncEnumerable<ServerJsonEntity> GetSeed([FromQuery] [Range(1, long.MaxValue)] long count = 500)
+    public IAsyncEnumerable<ServerJsonEntity> GetSeed(
+        [FromQuery] [Range(1, long.MaxValue)] long count = 500
+    )
     {
         return ServerSeeder.Generate(count).ToAsyncEnumerable();
     }
 
     [HttpPost("seed")]
-    public async Task<IActionResult> PostSeed([FromQuery] [Range(1, long.MaxValue)] long count = 500, CancellationToken ct = default)
+    public async Task<IActionResult> PostSeed(
+        [FromQuery] [Range(1, long.MaxValue)] long count = 500,
+        CancellationToken ct = default
+    )
     {
         var sw = Stopwatch.StartNew();
         var servers = FastServerSeeder.Generate(count);
@@ -36,7 +42,14 @@ public class ServersController(TheApiDbContext context, ILogger<ServersControlle
         var insertMs = sw.Elapsed.TotalMilliseconds;
         logger.LogInformation("Bulk insert: {InsertMs}ms", insertMs);
 
-        return Accepted(new { saved = count, generationMs, insertMs });
+        return Accepted(
+            new
+            {
+                saved = count,
+                generationMs,
+                insertMs,
+            }
+        );
     }
 
     async Task BulkInsertAsync(ServerJsonEntity[] servers, CancellationToken ct)
@@ -101,11 +114,40 @@ public class ServersController(TheApiDbContext context, ILogger<ServersControlle
 
             await tx.CommitAsync(ct);
         }
+    }
 
+    [HttpPost("seed-bulk-ext")]
+    public async Task<IActionResult> PostSeedBulkExt(
+        [FromQuery] [Range(1, long.MaxValue)] long count = 500,
+        CancellationToken ct = default
+    )
+    {
+        var sw = Stopwatch.StartNew();
+        var servers = FastServerSeeder.Generate(count);
+        var generationMs = sw.Elapsed.TotalMilliseconds;
+        logger.LogInformation("Generation: {GenerationMs}ms", generationMs);
+
+        sw.Restart();
+        await context.TruncateAsync<ServerJsonEntity>(cancellationToken: ct);
+        await context.BulkInsertOrUpdateOrDeleteAsync(servers, cancellationToken: ct);
+        var insertMs = sw.Elapsed.TotalMilliseconds;
+        logger.LogInformation("BulkExt insert: {InsertMs}ms", insertMs);
+
+        return Accepted(
+            new
+            {
+                saved = count,
+                generationMs,
+                insertMs,
+            }
+        );
     }
 
     [HttpPost("seed-ef")]
-    public async Task<IActionResult> PostSeedEf([FromQuery] [Range(1, long.MaxValue)] long count = 500, CancellationToken ct = default)
+    public async Task<IActionResult> PostSeedEf(
+        [FromQuery] [Range(1, long.MaxValue)] long count = 500,
+        CancellationToken ct = default
+    )
     {
         var sw = Stopwatch.StartNew();
         var servers = FastServerSeeder.Generate(count);
@@ -121,11 +163,19 @@ public class ServersController(TheApiDbContext context, ILogger<ServersControlle
             saved += await context.SaveChangesAsync(ct);
             context.ChangeTracker.Clear();
         }
+
         context.ChangeTracker.AutoDetectChangesEnabled = true;
         var efMs = sw.Elapsed.TotalMilliseconds;
         logger.LogInformation("EF insert: {EfMs}ms", efMs);
 
-        return Accepted(new { saved, generationMs, efMs });
+        return Accepted(
+            new
+            {
+                saved,
+                generationMs,
+                efMs,
+            }
+        );
     }
 
     [HttpGet]
