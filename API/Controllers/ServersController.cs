@@ -1,8 +1,7 @@
 using System.ComponentModel.DataAnnotations;
-using System.Data;
 using System.Diagnostics;
-using System.Text.Json;
 using API.DTOs;
+using API.Metrics;
 using Common;
 using Common.Entities;
 using Common.Seeding;
@@ -15,9 +14,16 @@ namespace API.Controllers;
 
 [ApiController]
 [Route("[controller]")]
-public class ServersController(TheApiDbContext context, ILogger<ServersController> logger)
-    : ControllerBase
+public class ServersController(
+    TheApiDbContext context,
+    ILogger<ServersController> logger,
+    SeedingMetrics metrics
+) : ControllerBase
 {
+    const double LogIntervalSeconds = 5.0;
+    static readonly KeyValuePair<string, object?> TagSeed = new("endpoint", "seed");
+    static readonly KeyValuePair<string, object?> TagBulkExt = new("endpoint", "seed-bulk-ext");
+
     [HttpGet("seed")]
     public IAsyncEnumerable<ServerJsonEntity> GetSeed(
         [FromQuery] [Range(1, long.MaxValue)] long count = 500
@@ -33,83 +39,72 @@ public class ServersController(TheApiDbContext context, ILogger<ServersControlle
     )
     {
         var sw = Stopwatch.StartNew();
-        var servers = FastServerSeeder.Generate(count);
-        var generationMs = sw.Elapsed.TotalMilliseconds;
-        logger.LogInformation("Generation: {GenerationMs}ms", generationMs);
+        await BulkInsertAsync(count, ct);
+        logger.LogInformation("Bulk insert total: {TotalMs:N0}ms", sw.Elapsed.TotalMilliseconds);
 
-        sw.Restart();
-        await BulkInsertAsync(servers, ct);
-        var insertMs = sw.Elapsed.TotalMilliseconds;
-        logger.LogInformation("Bulk insert: {InsertMs}ms", insertMs);
-
-        return Accepted(
-            new
-            {
-                saved = count,
-                generationMs,
-                insertMs,
-            }
-        );
+        return Accepted(new { saved = count, totalMs = sw.Elapsed.TotalMilliseconds });
     }
 
-    async Task BulkInsertAsync(ServerJsonEntity[] servers, CancellationToken ct)
+    async Task BulkInsertAsync(long count, CancellationToken ct)
     {
-        var dt = new DataTable();
-        dt.Columns.Add("Id", typeof(Guid));
-        dt.Columns.Add("Hostname", typeof(string));
-        dt.Columns.Add("IpAddress", typeof(string));
-        dt.Columns.Add("OperatingSystem", typeof(string));
-        dt.Columns.Add("CpuCores", typeof(int));
-        dt.Columns.Add("MemoryMb", typeof(int));
-        dt.Columns.Add("Status", typeof(string));
-        dt.Columns.Add("Environment", typeof(string));
-        dt.Columns.Add("ProvisionedAt", typeof(DateTime));
-        dt.Columns.Add("DecommissionedAt", typeof(DateTime));
-        dt.Columns.Add("Disks", typeof(string));
-        dt.Columns.Add("NetworkInterfaces", typeof(string));
-        dt.Columns.Add("InstalledServices", typeof(string));
-        dt.Columns.Add("Tags", typeof(string));
-
-        foreach (var s in servers)
-        {
-            dt.Rows.Add(
-                s.Id,
-                s.Hostname,
-                s.IpAddress,
-                s.OperatingSystem,
-                s.CpuCores,
-                s.MemoryMb,
-                s.Status,
-                s.Environment,
-                s.ProvisionedAt,
-                (object?)s.DecommissionedAt ?? DBNull.Value,
-                JsonSerializer.Serialize(s.Disks),
-                JsonSerializer.Serialize(s.NetworkInterfaces),
-                JsonSerializer.Serialize(s.InstalledServices),
-                JsonSerializer.Serialize(s.Tags)
-            );
-        }
-
         await using var conn = new SqlConnection(context.Database.GetConnectionString());
         await conn.OpenAsync(ct);
 
         await using (var tx = conn.BeginTransaction())
         {
+            var truncateSw = Stopwatch.StartNew();
             await using (var cmd = new SqlCommand("TRUNCATE TABLE ServersJson", conn, tx))
                 await cmd.ExecuteNonQueryAsync(ct);
+            var truncateSeconds = truncateSw.Elapsed.TotalSeconds;
+            logger.LogInformation("Truncate: {TruncateMs:N0}ms", truncateSeconds * 1000);
+            metrics.InsertTruncate.Record(truncateSeconds, TagSeed);
 
             using (var bulk = new SqlBulkCopy(conn, SqlBulkCopyOptions.TableLock, tx))
             {
                 bulk.DestinationTableName = "ServersJson";
-                bulk.BatchSize = 0;
-                bulk.BulkCopyTimeout = 120;
+                bulk.BatchSize = 50_000;
+                bulk.BulkCopyTimeout = 300;
 
-                foreach (DataColumn col in dt.Columns)
+                var insertSw = Stopwatch.StartNew();
+                var logTimer = Stopwatch.StartNew();
+                long lastRows = 0;
+
+                // Called every progressEvery rows by ServerDataReader.
+                // Always drains sub-method timings; throttles logging by time.
+                void OnProgress(long rows)
                 {
-                    bulk.ColumnMappings.Add(col.ColumnName, col.ColumnName);
+                    var delta = rows - lastRows;
+                    var subTimings = FastServerSeeder.DrainTimings();
+                    metrics.RowsSeeded.Add(delta, TagSeed);
+                    metrics.RecordSubTimings(subTimings, TagSeed);
+                    metrics.SetProgress(rows, count);
+                    lastRows = rows;
+
+                    if (rows < count && logTimer.Elapsed.TotalSeconds < LogIntervalSeconds)
+                        return;
+                    var elapsed = insertSw.Elapsed.TotalSeconds;
+                    var rate = rows / elapsed;
+                    logger.LogInformation(
+                        "Seeding /seed: {Rows:N0}/{Count:N0} | {Elapsed:N1}s | {Rate:N0} rows/s",
+                        rows,
+                        count,
+                        elapsed,
+                        rate
+                    );
+                    metrics.RowsPerSecond.Record(rate, TagSeed);
+                    logTimer.Restart();
                 }
 
-                await bulk.WriteToServerAsync(dt, ct);
+                var reader = new ServerDataReader(count, OnProgress);
+                for (var i = 0; i < reader.FieldCount; i++)
+                {
+                    bulk.ColumnMappings.Add(reader.GetName(i), reader.GetName(i));
+                }
+
+                await bulk.WriteToServerAsync(reader, ct);
+                OnProgress(count);
+                metrics.OperationDuration.Record(insertSw.Elapsed.TotalSeconds, TagSeed);
+                metrics.SetProgress(0, 1);
             }
 
             await tx.CommitAsync(ct);
@@ -122,25 +117,68 @@ public class ServersController(TheApiDbContext context, ILogger<ServersControlle
         [FromQuery] [Range(1, long.MaxValue)] long count = 500
     )
     {
-        var sw = Stopwatch.StartNew();
-        var servers = FastServerSeeder.Generate(count);
-        var generationMs = sw.Elapsed.TotalMilliseconds;
-        logger.LogInformation("Generation: {GenerationMs}ms", generationMs);
-
-        sw.Restart();
+        var truncateSw = Stopwatch.StartNew();
         await context.TruncateAsync<ServerJsonEntity>(cancellationToken: ct);
-        await context.BulkInsertOrUpdateOrDeleteAsync(servers, cancellationToken: ct);
-        var insertMs = sw.Elapsed.TotalMilliseconds;
-        logger.LogInformation("BulkExt insert: {InsertMs}ms", insertMs);
+        var truncateSeconds = truncateSw.Elapsed.TotalSeconds;
+        logger.LogInformation("Truncate: {TruncateMs:N0}ms", truncateSeconds * 1000);
+        metrics.InsertTruncate.Record(truncateSeconds, TagBulkExt);
 
-        return Accepted(
-            new
+        const int batchSize = 50_000;
+        long inserted = 0;
+        var totalSw = Stopwatch.StartNew();
+        var logTimer = Stopwatch.StartNew();
+
+        // Fixed buffer reused every batch — only the last (possibly smaller) batch
+        // creates a new array via buffer[..batchLen].
+        var buffer = new ServerJsonEntity[batchSize];
+        using var enumerator = FastServerSeeder.GenerateLazy(count, ct).GetEnumerator();
+
+        while (true)
+        {
+            // --- Generation phase (timed separately from insert) ---
+            var genSw = Stopwatch.StartNew();
+            var batchLen = 0;
+            while (batchLen < batchSize && enumerator.MoveNext())
             {
-                saved = count,
-                generationMs,
-                insertMs,
+                buffer[batchLen++] = enumerator.Current;
             }
-        );
+            if (batchLen == 0)
+            {
+                break;
+            }
+
+            metrics.GenerateBatch.Record(genSw.Elapsed.TotalSeconds, TagBulkExt);
+            metrics.RecordSubTimings(FastServerSeeder.DrainTimings(), TagBulkExt);
+
+            // --- Insert phase ---
+            var batchToInsert = batchLen == batchSize ? buffer : buffer[..batchLen];
+            var insertSw = Stopwatch.StartNew();
+            await context.BulkInsertAsync(batchToInsert, cancellationToken: ct);
+            metrics.InsertBatch.Record(insertSw.Elapsed.TotalSeconds, TagBulkExt);
+
+            inserted += batchLen;
+            metrics.RowsSeeded.Add(batchLen, TagBulkExt);
+            metrics.SetProgress(inserted, count);
+
+            if (inserted >= count || logTimer.Elapsed.TotalSeconds >= LogIntervalSeconds)
+            {
+                var rate = inserted / totalSw.Elapsed.TotalSeconds;
+                logger.LogInformation(
+                    "Seeding /seed-bulk-ext: {Inserted:N0}/{Count:N0} | {Elapsed:N1}s | {Rate:N0} rows/s",
+                    inserted,
+                    count,
+                    totalSw.Elapsed.TotalSeconds,
+                    rate
+                );
+                metrics.RowsPerSecond.Record(rate, TagBulkExt);
+                logTimer.Restart();
+            }
+        }
+
+        metrics.OperationDuration.Record(totalSw.Elapsed.TotalSeconds, TagBulkExt);
+        metrics.SetProgress(0, 1);
+
+        return Accepted(new { saved = count, insertMs = totalSw.Elapsed.TotalMilliseconds });
     }
 
     [HttpPost("seed-ef")]

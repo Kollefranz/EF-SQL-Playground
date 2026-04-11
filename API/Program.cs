@@ -1,3 +1,4 @@
+using API.Metrics;
 using Common;
 using Scalar.AspNetCore;
 
@@ -16,6 +17,8 @@ builder.Services.AddMiniProfiler(options =>
     options.RouteBasePath = "/profiler";
 }).AddEntityFramework();
 
+builder.Services.AddMetrics();
+builder.Services.AddSingleton<SeedingMetrics>();
 builder.Services.AddTheApiDatabase(builder.Configuration.GetConnectionString("DefaultConnection"));
 
 var app = builder.Build();
