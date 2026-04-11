@@ -28,8 +28,8 @@ public class ServersController(TheApiDbContext context, ILogger<ServersControlle
 
     [HttpPost("seed")]
     public async Task<IActionResult> PostSeed(
-        [FromQuery] [Range(1, long.MaxValue)] long count = 500,
-        CancellationToken ct = default
+        CancellationToken ct,
+        [FromQuery] [Range(1, long.MaxValue)] long count = 500
     )
     {
         var sw = Stopwatch.StartNew();
@@ -118,8 +118,8 @@ public class ServersController(TheApiDbContext context, ILogger<ServersControlle
 
     [HttpPost("seed-bulk-ext")]
     public async Task<IActionResult> PostSeedBulkExt(
-        [FromQuery] [Range(1, long.MaxValue)] long count = 500,
-        CancellationToken ct = default
+        CancellationToken ct,
+        [FromQuery] [Range(1, long.MaxValue)] long count = 500
     )
     {
         var sw = Stopwatch.StartNew();
@@ -145,8 +145,8 @@ public class ServersController(TheApiDbContext context, ILogger<ServersControlle
 
     [HttpPost("seed-ef")]
     public async Task<IActionResult> PostSeedEf(
-        [FromQuery] [Range(1, long.MaxValue)] long count = 500,
-        CancellationToken ct = default
+        CancellationToken ct,
+        [FromQuery] [Range(1, long.MaxValue)] long count = 500
     )
     {
         var sw = Stopwatch.StartNew();
@@ -186,9 +186,9 @@ public class ServersController(TheApiDbContext context, ILogger<ServersControlle
 
     [HttpGet("paged")]
     public async Task<PagedResult<object>> GetServersPaged(
+        CancellationToken ct,
         [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 25,
-        CancellationToken ct = default
+        [FromQuery] int pageSize = 25
     )
     {
         var total = await context.Servers.CountAsync(ct);
